@@ -22,7 +22,8 @@ Extract one sales/discovery call into Baserow as structured, KPI-ready data.
 The routine fires once per finished sales call and passes ANY of:
 - `transcript` — speaker-labelled text (`[MM:SS] Speaker Name: ...`); may be raw/auto-diarised.
 - `fathom_url` and/or `recording_id` — a Fathom call link or numeric id.
-- `call_title`, `call_date` (ISO), `owner_hint` — optional metadata.
+- `client` — **which account this call belongs to.** The client's name exactly as it appears in the Client Data table, or `Optimally` for Optimally's own sales calls. The routine always passes this; use it to set the owner link (Step 1). Do not infer it unless it is genuinely missing.
+- `call_title`, `call_date` (ISO), `previous_call_id` — optional metadata.
 
 **Resolve the input to a transcript + metadata before doing anything else:**
 - If a `fathom_url` is given → `get_recording_by_url` (returns recording_id, title, date, url) → then `get_meeting_transcript(recording_id, url)`.
@@ -75,13 +76,16 @@ question in play?* If no → skip. If unsure → skip and flag for human review 
 
 ## Step 1 — Identify the Owner Account (who the pipeline belongs to)
 
-The owner is **the selling side**, not the prospect.
-- Optimally's own sales call → owner = **Optimally Systems**.
-- A client's sales call we're ingesting as a service → owner = **that client**.
+The owner is **the selling side**, not the prospect. It is given by the `client` input.
 
-Resolve to a Client Data row id: `list_table_rows(1000911, search="<owner name>")`, take the
-matching row `id`, and set the parent `Client Data` link to `[that_id]`. Optimally Systems is
-currently row **38**. If no client match is found, do not guess — flag for human review.
+Resolve `client` to a Client Data row id: `list_table_rows(1000911, search="<client>")`, take the
+matching row `id`, and set the parent `Client Data` link to `[that_id]`.
+- `client = "Optimally"` (Optimally's own sales calls) → **Optimally Systems**, row **38**.
+- Any other value → that client's existing Client Data row.
+
+**Never create a new Client Data row.** If `client` is missing, infer the selling side from the
+transcript and resolve as above. If no matching Client Data row exists, do NOT guess and do NOT
+create one — write the call but leave `Client Data` empty and flag for human review.
 
 ## Step 2 — Core / identity fields
 
