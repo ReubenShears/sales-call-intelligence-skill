@@ -33,6 +33,19 @@ Always capture the `recording_id` and canonical recording URL — they are the *
 
 Tools to load (ToolSearch): Fathom `get_recording_by_url`, `get_recording_by_call_id`, `get_meeting_transcript`; Baserow `list_table_rows`, `create_rows`, `update_rows`, `delete_rows`.
 
+## Batch input (important)
+
+The routine is fired **once per day with a BATCH**, to stay under the API call limit. The payload
+may be a single call OR an object like `{ "batch": true, "count": N, "calls": [ {…}, {…} ] }` where
+each element of `calls` is one call with its own `client`, `recording_id`, `fathom_url`,
+`call_title`, `call_date` (and possibly different clients in the same batch).
+
+When you receive a batch: **process every element independently and sequentially** — run the full
+skill for each one (resolve transcript → Step 0 idempotency/upsert → scope check → owner link via
+that element's `client` → extract → write parent + objection rows). One call's outcome (skipped,
+created, updated) must not affect the others. Idempotency is per `recording_id`, so a re-sent batch
+is safe. When done, report one line per call (created/updated/skipped + row id).
+
 ## Baserow targets (workspace 453125)
 
 - **Sales Call Data** — table `1028550` (parent, one row per call)
